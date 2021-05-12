@@ -1,4 +1,13 @@
-
+/ Muktita Kim
+// CPSC 120-02
+// 2021-05-13
+// muktitakim@gmail.com
+// @muktita
+// 
+//lab 12-01
+//
+// This program create a shiny spheres
+//
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -20,9 +29,21 @@ using namespace std;
 /// \param r A ray eminating from the camera through the scene
 /// \param world The world - the scene that will be rendered
 /// \returns The color visible from that ray
-Color RayColor(const Ray& r, const Sphere& world) {
+Color RayColor(const Ray& r, const std::vector<std::shared_ptr<Hittable>>& world) {
   HitRecord rec;
   Color c;
+  HitRecord tmp_rec;
+  bool hit_anything = false;
+  double t_min = 0.0;
+  double closest_so_far = kInfinity;
+  for (const auto& object : world) {
+    if (object->hit(r, t_min, closest_so_far, tmp_rec)) {
+       hit_anything = true;
+       closest_so_far = tmp_rec.t;
+       rec = tmp_rec;
+    }
+  }
+  /*
   // check to see if the ray intersects with the world
   if (world.hit(r, 0, kInfinity, rec)) {
     // This is the base color of the sphere. You may set this color
@@ -50,7 +71,12 @@ Color RayColor(const Ray& r, const Sphere& world) {
 
     Color phong = phong_ambient + phong_diffuse + phong_specular;
     c = Clamp(phong, 0, 1);
-  } else {
+  }
+  */
+  if (hit_anything) {
+    c = rec.material->reflect_color(r, rec);
+  }
+   else {
     // Color sky_top{.5, .4, 0};
     // Color sky_bottom{.2, .1, .5};
     Color sky_top{0.4980392156862745, 0.7450980392156863, 0.9215686274509803};
@@ -107,6 +133,7 @@ int main(int argc, char const* argv[]) {
   const int kImageHeight = int(lround(kImageWidth / kAspectRatio));
   // Create a new Image object using the file name provided on the
   // command line.
+  const int kSamplesPerPixel = 20;
   Image image(argv_one_output_file_name, kImageWidth, kImageHeight);
   if (!image.is_open()) {
     ostringstream message_buffer("Could not open the file ", ios_base::ate);
@@ -120,7 +147,9 @@ int main(int argc, char const* argv[]) {
   cout << "Image: " << image.height() << "x" << image.width() << "\n";
 
   /// World definition in main
-  auto world = Sphere(Point3(0, 0, -1), 0.5);
+  // auto world = OriginalScene();
+  const int kNumSpheres = 100;
+  auto world = RandomScene(kNumSpheres);
 
   /// Camera definition in main
   /// The [viewport](https://en.wikipedia.org/wiki/Viewport) is the
@@ -165,6 +194,7 @@ int main(int argc, char const* argv[]) {
   // be calculated.
   chrono::time_point<chrono::high_resolution_clock> start =
       chrono::high_resolution_clock::now();
+      Color pixel_color;
   for (int row = image.height() - 1; row >= 0; row--) {
     for (int column = 0; column < image.width(); column++) {
       // u is the distance from the left edge of the image to the right
@@ -177,20 +207,28 @@ int main(int argc, char const* argv[]) {
       //          column = image.width() - 1 then
       //          colum / (image.width() - 1) -> 1.0
       // The same is true for v
-      double u = double(column) / double(image.width() - 1);
-      double v = double(row) / double(image.height() - 1);
-      // Create a ray that starts at the camera's center, the origin, and
-      // travels through the pixel center defined by
-      // kLowerLeftCorner + u * kHorizontal + v * kVertical - kOrigin
-      Ray r{kOrigin,
+      for (int s = 0; s < kSamplesPerPixel; s++) {
+        double u = (double(column) + RandomDouble01()) / double(image.width() - 1);
+        double v = (double(row) + RandomDouble01()) / double(image.height() - 1);
+        // Create a ray that starts at the camera's center, the origin, and
+        // travels through the pixel center defined by
+        // kLowerLeftCorner + u * kHorizontal + v * kVertical - kOrigin
+        Ray r{kOrigin,
             kLowerLeftCorner + u * kHorizontal + v * kVertical - kOrigin};
-      // cout << "row: " << row << " col: " << column << " u: " << u << " v: "
-      // << v << "\n" << r << "\n";
-      // Calculate and return the color at the pixel that Ray r
-      // points through.
-      Color pixel_color = RayColor(r, world);
-      // Write the color to the image file.
-      image.write(pixel_color);
+        // cout << "row: " << row << " col: " << column << " u: " << u << " v: "
+        // << v << "\n" << r << "\n";
+        // Calculate and return the color at the pixel that Ray r
+        // points through.
+        pixel_color = pixel_color + RayColor(r, world);
+      }
+
+        double scale = 1.0 / double(kSamplesPerPixel);
+        double r = Clamp(std::sqrt(pixel_color.r() * scale), 0.0, 1.0);
+        double g = Clamp(std::sqrt(pixel_color.g() * scale), 0.0, 1.0);
+        double b = Clamp(std::sqrt(pixel_color.b() * scale), 0.0, 1.0);
+        pixel_color = Color(r, g, b);
+        // Write the color to the image file.
+        image.write(pixel_color);
     }
   }
   // Save the ending time
