@@ -1,4 +1,4 @@
-/ Muktita Kim
+// Muktita Kim
 // CPSC 120-02
 // 2021-05-13
 // muktitakim@gmail.com
